@@ -1,7 +1,9 @@
-numpy
-seaborn
-matplotlib
+# --- Global ---
 pandas
-plotly
-streamlit
+numpy
+openpyxl
+
+# --- Analyse & Notebooks ---
 nbformat
+matplotlib
+seaborn
