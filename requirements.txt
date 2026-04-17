@@ -8,6 +8,13 @@ nbformat
 matplotlib
 seaborn
 
+# --- Modélisation ---
+scikit-learn
+xgboost
+tqdm
+optuna
+joblib
+
 # --- Dashboarding (UI & Visualisation) ---
 streamlit
 plotly

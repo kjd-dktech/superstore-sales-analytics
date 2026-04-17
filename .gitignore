@@ -1,5 +1,6 @@
 data/raw/
 model/
+assets/exports/
 __pycache__/
 __init__.py
 superstoreSAvenv
