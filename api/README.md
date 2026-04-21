@@ -1,47 +1,36 @@
 # 🚀 Superstore Profit Predictor - Microservice API
 
-Ce répertoire correspond au backend de Machine Learning pour l'application d'analyse Superstore. Ce service est entièrement découplé du dashboard Streamlit.
+**Inference API for Financial Predictions and Business Scenarios**
 
-## 🎯 Architecture
-- **Serveur** : [FastAPI](https://fastapi.tiangolo.com)
-- **Rate-Limiting** : [SlowAPI](https://slowapi.readthedocs.io/en/latest/) avec prise en charge **Redis** pour un comptage persistant et distribué.
-- **Data & Model** : Pandas, NumPy, Scikit-Learn -> Exportés via Joblib et stockés sur [Hugging Face Hub](https://huggingface.co/).
-- **Sécurité & DB** : Mots de passe et clés hachés et sécurisés via la librairie standard native bcrypt dans SQLite (`db/api_keys.db`). Cookies Admin protégés par chiffrement symétrique AES (**Fernet**).
+## 🎯 Architecture & Finalité
 
-## 🛠️ Installation et Lancement Local
+Le service d'inférence (Analytics & ML Backend) a été structuré comme un microservice indépendant afin de garantir la scalabilité et la sécurité des données décisionnelles :
+- **Framework de livraison** : L'API est développée sous `FastAPI`, optimisée pour une gestion asynchrone intensive.
+- **Continuité Analytique** : Le modèle prédictif embarqué (basé sur l'historique d'exploitation du système d'information) évalue la rentabilité sur-le-champ de scénarios transactionnels (Simulations unitaires et traitement par lots - Batching).
 
-1. Configurez la sécurité via un fichier `.env` à la racine du projet (ajoutez impérativement votre `ADMIN_SECRET_KEY` ainsi que `REDIS_URL` si nécessaire).
-2. Assurez-vous d'être dans le dossier `api/` puis installez les dépendances :
-   ```bash
-   cd api
-   pip install -r requirements.txt
-   ```
-3. Démarrez l'API :
-   ```bash
-   uvicorn main:app --host 127.0.0.1 --port 8000 --reload
-   ```
+## 📊 Capacités Stratégiques (SLA & Sécurité)
 
-*(Interfaces web disponibles après lancement :)*
-- 🔑 **Portail Développeur** : `http://127.0.0.1:8000/developer` (Création de clés)
-- ⚡ **Dashboard Admin** : `http://127.0.0.1:8000/admin/dashboard` (Console de gestion sécurisée)
-- 📚 **Swagger UI** : `http://127.0.0.1:8000/docs` (Disponible uniquement en environnement de développement)
-- 📚 **Documentation** : `http://127.0.0.1:8000/documentation`
+Dans une optique de déploiement en production, l'architecture a été blindée contre divers vecteurs tout en permettant un Monitoring des consultations :
 
-## 🐋 Déploiement via Docker
+1. **Gatekeeping API Key**
+   - Protection rigoureuse de toutes les requêtes (Simulations et Batching) par `X-API-KEY`. 
+   - Hachage cryptographique avancé via `bcrypt` garantissant une étanchéité des accréditations en base de données de production.
 
-Pour des raisons de consistance en production (sur un VPS, un cluster Kubernetes ou via le repository Docker officiel de Hugging Face Spaces), vous pouvez isoler l'API à l'aide de Docker.
+2. **Mitigation Rate-Limiting & Redis**
+   - Implémentation de `SlowAPI` et provision d'une file d'attente sur `Redis` afin de limiter rationnellement le traffic (ex: throttling des appels B2B massifs sur le endpoint d'inférence Batch).
 
-1. Construire l'image :
-   ```bash
-   docker build -t superstore-profit-predictor-api .
-   ```
-2. Lancer le conteneur en associant le port local :
-   ```bash
-   docker run -p 8000:8000 superstore-profit-predictor-api
-   ```
-> 💡 *Cette image s'exécute avec les autorisations de l'utilisateur standard (non-root id=1000) et crée logiquement ses sous-dossiers locaux (`db/` et `logs/`) au sein de son scope, la rendant très facilement intégrable sur Kubernetes ou Hugging Face Spaces.*
+3. **Administration Monitoring**
+   - Panneau de gouvernance sécurisé (Admin Dashboard) pour l'attribution des clés clients. Identité de session chiffrée par symétrie (AES) avec `Fernet` via cookies signés.
 
-## 👤 Auteur
+## 🐋 Stratégie de Déploiement
 
-Kodjo Jean DEGBEVI — [LinkedIn](https://www.linkedin.com/in/kodjo-jean-degbevi-ba5170369) — [GitHub](https://github.com/kjd-dktech)
+Afin d'assurer sa portabilité et sa tolérance de charge :
 
+1. **Modèle de distribution (Hugging Face / S3)** : Le pipeline Scikit-Learn (Joblib) est hébergé indépendamment du code applicatif. À l'initialisation (Lifespan), l'API s'assure d'importer le poids fonctionnel le plus récent.
+2. **Containerisation** : Image Docker structurée avec des privilèges de base afin de convenir aux contraintes des orchestrateurs cloud sécurisés (Hugging Face Spaces, Kubernetes). Optimisation interne du parallélisme du modèle via `OMP_NUM_THREADS="1"` pour minimiser les contentions CPUs au sein d'environnements hyper-threadés.
+
+---
+*L'architecture de service est prévue pour assurer une évolutivité avec l'augmentation du nombre de transactions et de catégories traitées.*
+
+---
+Kodjo Jean DEGBEVI — [LinkedIn](https://www.linkedin.com/in/kodjo-jean-degbevi-ba5170369) — [GitHub](https://github.com/kjd-dktech) — [Portfolio](https://mayal.tech)

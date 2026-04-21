@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Kodjo Jean DEGBEVI. Tous droits réservés.
+# Copyright (c) 2026 Kodjo Jean DEGBEVI. Distribué sous licence CC BY-NC-SA 4.0.
 #========================================
 # Utility functions
 #========================================

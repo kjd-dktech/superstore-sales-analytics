@@ -1,10 +1,12 @@
-# Copyright (c) 2026 Kodjo Jean DEGBEVI. Tous droits réservés.
+# Copyright (c) 2026 Kodjo Jean DEGBEVI. Distribué sous licence CC BY-NC-SA 4.0.
 #========================================================
-# Application FastAPI pour le Superstore Profit Predictor
+# System ML Microservice: Inférence prédictive de Marge (Superstore)
+# Ce module backend expose les prédictions du modèle entraîné aux front-ends décisionnels.
 #========================================================
 
 import os
 
+# Verrouillage du multithreading OpenMP
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -128,7 +130,7 @@ def verify_key(key: str, hashed: str) -> bool:
     except Exception:
         return False
 
-def verify_api_key(request: Request = None, api_key: str = Depends(api_key_header)):
+def verify_api_key(request: Request = None, api_key: str = Depends(api_key_header), increment: bool = True):
     client_ip = request.client.host if request.client else "unknown"
     if not api_key:
         logger.warning(f"IP: {client_ip} - Tentative d'accès bloquée : Clé API manquante")
@@ -150,11 +152,17 @@ def verify_api_key(request: Request = None, api_key: str = Depends(api_key_heade
         logger.warning(f"IP: {client_ip} - Tentative d'accès bloquée : Clé API invalide utilisée ({api_key[:8]}...)")
         raise HTTPException(status_code=403, detail="Clé API invalide ou désactivée.")
     
-    c.execute("UPDATE api_keys SET requests_count = requests_count + 1 WHERE id = ?", (matched_record["id"],))
-    conn.commit()
+    if increment:
+        c.execute("UPDATE api_keys SET requests_count = requests_count + 1 WHERE id = ?", (matched_record["id"],))
+        conn.commit()
+        conn.close()
+    
     conn.close()
     
     return dict(matched_record)
+
+def verify_api_key_no_increment(request: Request = None, api_key: str = Depends(api_key_header)):
+    return verify_api_key(request, api_key, increment=False)
 
 def verify_admin(
     admin_key_header: str = Depends(APIKeyHeader(name="X-ADMIN-KEY", auto_error=False)),
@@ -245,6 +253,22 @@ app = FastAPI(
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+#==========================================
+# ROUTE : SANTÉ & AUTHENTIFICATION
+#==========================================
+@app.get("/")
+def read_root():
+    return {"status": "online", "model_loaded": ml_model is not None}
+
+@app.get("/auth/check")
+def check_auth(request: Request, key_info: dict = Depends(verify_api_key_no_increment)):
+    return {
+        "status": "ok",
+        "message": "Clé API valide",
+        "user": key_info.get("email"),
+        "requests_count": key_info.get("requests_count")
+    }
 
 # ==========================================
 # ROUTES : DÉVELOPPEURS & DOCS
@@ -419,6 +443,23 @@ async def api_documentation():
             th, td { padding: 10px; border: 1px solid #dee2e6; text-align: left; }
             th { background: #e9ecef; }
             .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; font-weight: bold; background: #6c757d; color: white; }
+            .footer {
+                margin-top: 50px;
+                padding-top: 20px;
+                border-top: 1px solid #dee2e6;
+                text-align: center;
+                font-size: 0.85em;
+                color: #6c757d;
+            }
+
+            .footer a {
+                color: #007bff;
+                text-decoration: none;
+            }
+
+            .footer a:hover {
+                text-decoration: underline;
+            }
         </style>
     </head>
     <body>
@@ -433,6 +474,50 @@ async def api_documentation():
             <li><strong>/predict :</strong> Limitée à 60 requêtes par minute par utilisateur.</li>
             <li><strong>/predict_batch :</strong> Limitée à 20 requêtes par minute par utilisateur. Le traitement par lot (batch) de plusieurs transactions est plus coûteux en ressources calcul, la limite est donc abaissée pour garantir la stabilité et la disponibilité de l'API pour tous les utilisateurs.</li>
         </ul>
+
+        <h2>Codes de réponse HTTP</h2>
+        <p>Voici les principaux codes de réponse retournés par l'API :</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Signification</th>
+                    <th>Détails</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="badge">200</span></td>
+                    <td>Succès</td>
+                    <td>La requête a été traitée correctement.</td>
+                </tr>
+                <tr>
+                    <td><span class="badge">403</span></td>
+                    <td>Accès refusé</td>
+                    <td>Clé API absente, invalide ou non autorisée.</td>
+                </tr>
+                <tr>
+                    <td><span class="badge">422</span></td>
+                    <td>Données invalides</td>
+                    <td>Erreur de validation du JSON envoyé.</td>
+                </tr>
+                <tr>
+                    <td><span class="badge">429</span></td>
+                    <td>Trop de requêtes</td>
+                    <td>Rate limit dépassée.</td>
+                </tr>
+                <tr>
+                    <td><span class="badge">500</span></td>
+                    <td>Erreur serveur</td>
+                    <td>Erreur interne lors du traitement.</td>
+                </tr>
+                <tr>
+                    <td><span class="badge">503</span></td>
+                    <td>Service indisponible</td>
+                    <td>Modèle de prédiction non chargé.</td>
+                </tr>
+            </tbody>
+        </table>
 
         <h2>Format des données (Features)</h2>
         <p>Le corps JSON envoyé à l'API doit contenir les attributs exacts représentant les conditions de la transaction de vente :</p>
@@ -474,50 +559,86 @@ async def api_documentation():
         </table>
 
         <h2>Endpoints Disponibles</h2>
+        <div class="endpoint">GET /</div>
+            <p>Vérifie si l'API est en ligne et si le modèle est chargé.</p>
+
+            <strong>Réponse :</strong>
+            <pre>{
+                "status": "online",
+                "model_loaded": true
+            }</pre>
+        
+        <div class="endpoint">GET /auth/check</div>
+            <p>Permet de vérifier si une clé API est valide sans consommer de quota.</p>
+            <strong>Headers :</strong>
+            <pre>X-API-KEY: sk_...</pre>
+            <strong>Réponse :</strong>
+            <pre>{
+                "status": "ok",
+                "message": "Clé API valide",
+                "user": "email@example.com",
+                "requests_count": 42
+            }</pre>
         
         <div class="endpoint">POST /predict</div>
-        <p>Estime le profit pour une seule transaction métier.</p>
-        <strong>Corps de la requête (JSON) :</strong>
-        <pre>{
-  "Sales": 261.96,
-  "Discount": 0.0,
-  "Sub_Category": "Bookcases",
-  "Region": "South",
-  "Segment": "Consumer"
-}</pre>
-        <strong>Réponse :</strong>
-        <pre>{
-  "predicted_profit": 41.91
-}</pre>
+            <p>Estime le profit pour une seule transaction métier.</p>
+            <strong>Headers :</strong>
+            <pre>X-API-KEY: sk_...</pre>
+            <strong>Corps de la requête (JSON) :</strong>
+            <pre>{
+                "Sales": 261.96,
+                "Discount": 0.0,
+                "Sub_Category": "Bookcases",
+                "Region": "South",
+                "Segment": "Consumer"
+            }</pre>
+            <strong>Réponse :</strong>
+            <pre>{
+                "predicted_profit": 41.91
+            }</pre>
 
         <div class="endpoint">POST /predict_batch</div>
-        <p>Estime le profit pour une liste de transactions (Max 20 req/min).</p>
-        <strong>Corps de la requête (JSON) :</strong>
-        <pre>{
-  "records": [
-    {
-      "Sales": 261.96,
-      "Discount": 0.0,
-      "Sub_Category": "Bookcases",
-      "Region": "South",
-      "Segment": "Consumer"
-    },
-    {
-      "Sales": 731.94,
-      "Discount": 0.2,
-      "Sub_Category": "Chairs",
-      "Region": "West",
-      "Segment": "Corporate"
-    }
-  ]
-}</pre>
-        <strong>Réponse :</strong>
-        <pre>{
-  "predictions": [41.91, 120.45]
-}</pre>
+            <p>Estime le profit pour une liste de transactions (Max 20 req/min).</p>
+            <strong>Headers :</strong>
+            <pre>X-API-KEY: sk_...</pre>
+            <strong>Corps de la requête (JSON) :</strong>
+            <pre>{
+                "records": [
+                    {
+                    "Sales": 261.96,
+                    "Discount": 0.0,
+                    "Sub_Category": "Bookcases",
+                    "Region": "South",
+                    "Segment": "Consumer"
+                    },
+                    {
+                    "Sales": 731.94,
+                    "Discount": 0.2,
+                    "Sub_Category": "Chairs",
+                    "Region": "West",
+                    "Segment": "Corporate"
+                    }
+                ]
+            }</pre>
+            <strong>Réponse :</strong>
+            <pre>{
+                "predictions": [41.91, 120.45]
+            }</pre>
+
         <br>
         <p><a href="/developer" style="color: #007bff; text-decoration: none;">&larr; Retour au portail développeur</a></p>
+        <p><a href="https://mayal.tech/contact/">Nous contacter</a></p>
+
     </body>
+    <footer class="footer">
+        <p>&copy; 2026 Kodjo Jean DEGBEVI</p>
+        <p>
+            Ce projet est distribué sous licence 
+            <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">
+                CC BY-NC-SA 4.0
+            </a>.
+        </p>
+    </footer>
     </html>
     """
     return HTMLResponse(content=html_content)
@@ -525,10 +646,6 @@ async def api_documentation():
 # ==========================================
 # ROUTES : MACHINE LEARNING
 # ==========================================
-@app.get("/")
-def read_root():
-    return {"status": "online", "model_loaded": ml_model is not None}
-
 @app.post("/predict", response_model=PredictionResponse)
 @limiter.limit("60/minute") 
 def predict_profit(record: SaleRecord, request: Request = None, key_info: dict = Depends(verify_api_key)):
@@ -568,6 +685,9 @@ def predict_batch_profit(batch: BatchSaleRecord, request: Request = None, key_in
         logger.error(f"IP: {client_ip} - Erreur modèle batch: {str(e)}")
         raise HTTPException(status_code=500, detail="Erreur interne lors de la prédiction en lot")
 
+# ==========================================
+# ROUTES : ADMINISTRATION
+# ==========================================
 def get_admin_dashboard_html():
     return """<!DOCTYPE html>
     <html lang="fr">

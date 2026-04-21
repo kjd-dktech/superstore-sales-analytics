@@ -1,10 +1,11 @@
-# Copyright (c) 2026 Kodjo Jean DEGBEVI. Tous droits réservés.
-#=============================================================
-# Application Streamlit pour l'analyse du Superstore
-#=============================================================
+# Copyright (c) 2026 Kodjo Jean DEGBEVI. Distribué sous licence CC BY-NC-SA 4.0.
+#=============================================================================
+# Application Streamlit pour l'analyse stratégique et prédictive du Superstore
+#=============================================================================
 
 import streamlit as st
 from streamlit import iframe as stif
+
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -21,6 +22,9 @@ import time
 import hashlib
 import base64
 
+# ==========================================
+# CONFIGURATION, HISTORIQUE & MÉMOIRE
+# ==========================================
 load_dotenv()
 API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
 CURRENT_FILE_DIR = Path(__file__).resolve().parent
@@ -28,7 +32,6 @@ data_path = CURRENT_FILE_DIR / "superstore_processed.csv"
 
 st.set_page_config(page_title="Superstore Analytics", page_icon="📊", layout="wide")
 
-# --- HISTORIQUE EN SESSION ---
 history_dir = CURRENT_FILE_DIR / "logs"
 try:
     os.makedirs(history_dir, exist_ok=True)
@@ -145,19 +148,74 @@ def get_us_state_abbrev():
 def check_api_status():
     try:
         res = requests.get(f"{API_URL}/", timeout=3)
-        return res.status_code == 200 and res.json().get("model_loaded", False)
+        if res.status_code == 200:
+            data = res.json()
+            return {
+                "online": True,
+                "model_loaded": data.get("model_loaded", False)
+            }
     except:
-        return False
+        pass
+    
+    return {
+        "online": False,
+        "model_loaded": False
+    }
 
 @st.cache_data(ttl=300, show_spinner=False)
-def is_api_key_valid(key: str) -> list:
-    if not key: return [False, False, False]
+def validate_api_key(key: str):
+    if not key:
+        return {"valid": False, "reason": "missing"}
+    
     try:
-        payload = {'Sales': 0, 'Discount': 0, 'Sub_Category': 'Chairs', 'Region': 'West', 'Segment': 'Consumer'}
-        res = requests.post(f"{API_URL}/predict", json=payload, headers={"X-API-KEY": key}, timeout=3)
-        return [res.status_code in [404, 502, 503, 504], res.status_code == 200, res.status_code == 500]
+        #payload = {
+        #    'Sales': 0,
+        #    'Discount': 0,
+        #    'Sub_Category': 'Chairs',
+        #    'Region': 'West',
+        #    'Segment': 'Consumer'
+        #}
+
+        res = requests.get(
+            f"{API_URL}/auth/check",
+            #json=payload,
+            headers={"X-API-KEY": key},
+            timeout=6
+        )
+
+        if res.status_code == 200:
+            return {"valid": True, "reason": "ok"}
+        elif res.status_code == 403:
+            return {"valid": False, "reason": "invalid"}
+        elif res.status_code == 503:
+            return {"valid": False, "reason": "model_down"}
+        else:
+            return {"valid": False, "reason": "error"}
+
     except:
-        return [True, False, False]
+        return {"valid": False, "reason": "unreachable"}
+
+api_status = check_api_status()
+api_online = api_status["online"]
+model_loaded = api_status["model_loaded"]
+
+master_key = os.getenv("MASTER_API_KEY", "")
+current_api_key = st.session_state.get('api_key_val', '')
+
+using_master = False
+key_status = None
+
+# Priorité à la disponibilité de l'API
+if api_online:
+    
+    if master_key:
+        key_status = validate_api_key(master_key)
+        if key_status["valid"]:
+            current_api_key = master_key
+            using_master = True
+    
+    if not using_master:
+        key_status = validate_api_key(current_api_key)
 
 @st.cache_data
 def load_data():
@@ -169,50 +227,60 @@ def load_data():
     return df
 
 df = load_data()
-api_ready = check_api_status()
 
-master_key = os.getenv("MASTER_API_KEY", "")
-using_master = False
-if master_key and is_api_key_valid(master_key)[1]:
-    current_api_key = master_key
-    using_master = True
-else:
-    current_api_key = st.session_state.get('api_key_val', '')
-api_check = is_api_key_valid(current_api_key)
-key_is_valid = api_ready and (using_master or api_check[1])
+# ==========================================
+# SIDEBAR : API & FILTRAGE
+# ==========================================
+# --- Config API ---
 
-# --- SIDEBAR ---
 st.sidebar.header("Configuration API")
 
-if using_master:
+api_key = current_api_key or ""
+if not api_online:
+    st.sidebar.warning("⚠️ API injoignable. Vérifiez votre connexion.")
+    
+elif not model_loaded:
+    st.sidebar.warning("⚠️ Modèle non chargé côté serveur.")
+    
+elif using_master:
     api_key = current_api_key
-    st.sidebar.success("✅ Application Connectée")
-elif (not key_is_valid) or ((not key_is_valid) and master_key):
-    api_key = st.sidebar.text_input(
-        "Clé API", 
-        type="password", 
-        key="api_input", 
-        value=current_api_key, 
-        on_change=save_api_key,
-        help="Appuyez sur Entrée pour valider. [Obtenir une clé API](https://kjd-dktech-superstore-api.hf.space/developer)."
-    )
-    if current_api_key or master_key:
-        if api_check[0]:
-            st.sidebar.warning("⚠️ Serveur API injoignable. Vérifiez l'URL ou votre connexion.")
-        else:
-            st.sidebar.error("❌ Clé API invalide. Veuillez réessayer ou contacter l'administrateur.")
+    st.sidebar.success("✅ Application connectée.")
 else:
-    api_key = current_api_key
-    st.sidebar.success("✅ Connecté à l'API")
-    if st.sidebar.button("Déconnecter / Changer la clé"):
-        st.session_state['api_key_val'] = ""
-        save_api_key()
-        st.rerun()
+    if current_api_key and key_status and key_status["valid"]:
+        api_key = current_api_key
+        st.sidebar.success("✅ Connecté à l'API")
+        if not using_master:
+            if st.sidebar.button("Déconnecter / Changer la clé"):
+                st.session_state['api_key_val'] = ""
+                save_api_key()
+                api_key = ""
+                st.rerun()
+    else:
+        api_key = st.sidebar.text_input(
+            "Clé API",
+            type="password",
+            key="api_input",
+            value=current_api_key,
+            on_change=save_api_key,
+            help="Appuyez sur Entrée pour valider.[Obtenir une clé API](https://kjd-dktech-superstore-api.hf.space/developer)."
+        )
 
-if not api_ready:
-    st.sidebar.warning("❌ L'API de prédiction ne semble pas être en ligne.")
-st.sidebar.markdown("---")
+        if not current_api_key:
+            st.sidebar.info("ℹ️ Entrez votre clé API.")
+        
+        elif key_status["reason"] == "invalid":
+            st.sidebar.error("❌ Clé API invalide.")
+        
+        elif key_status["reason"] == "model_down":
+            st.sidebar.warning("⚠️ Modèle indisponible.")
+        
+        elif key_status["reason"] == "unreachable":
+            st.sidebar.warning("⚠️ Serveur injoignable.")
+        
+        elif key_status["reason"] == "error":
+            st.sidebar.error("❌ Erreur lors de la validation de la clé API.")
 
+# --- Config Filtres ---
 st.sidebar.header("Filtres")
 
 selected_years = st.sidebar.multiselect(
@@ -245,7 +313,9 @@ if 'Category' in df.columns:
     
 filtered_df = df[mask]
 
-# --- HEADER ET KPIS ---
+# ==========================================
+# HEADER & KPIS
+# ==========================================
 st.title("📊 Dashboard - Superstore")
 
 col1, col2, col3, col4 = st.columns(4)
@@ -276,6 +346,7 @@ col4.metric("Clients Uniques", f"{total_customers:,}", f"~ {int(avg_customers):,
 st.markdown("---")
 
 tabs_names = [
+    "� Recommandations",
     "📍 Géographie", 
     "📦 Rentabilité Produit", 
     "💸 Point Mort", 
@@ -284,11 +355,45 @@ tabs_names = [
     "🕒 Historique (Logs)"
 ]
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(tabs_names)
+tab_reco, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(tabs_names)
 
 st.markdown("---")
 
-# --- VUES DES ONGLETS ---
+# ==========================================
+# VUES DES ONGLETS
+# ==========================================
+with tab_reco:
+    #st.header("Résumé Exécutif & Recommandations Stratégiques")
+    
+    st.markdown("""
+    
+    #### 1. Instauration d'un Plafond de Remise (Hard Cap)
+    **Constat :** L'analyse du point mort démontre que toute remise supérieure à 20% entraîne quasi systématiquement une vente à perte, particulièrement sur les produits dont la structure de coût est rigide.
+    
+    > **Recommandation :** Implémenter une règle métier stricte dans le système de vente bloquant techniquement toute remise au-delà de 20%. <br> Les exceptions doivent être limitées aux produits à très haute marge brute (ex: Classeurs/Binders) et soumises à validation managériale.
+    
+    ---
+    
+    #### 2. Redressement des États "Trous Noirs"
+    **Constat :** Seuls quatre États (Texas, Ohio, Pennsylvanie, Illinois) cumulent plus de 70 000 $ de pertes nettes en raison de remises moyennes insoutenables dépassant les 30%, contre seulement 11% dans la région Ouest.
+    
+    > **Recommandation :** Aligner d'urgence la politique commerciale de ces zones sur le modèle de discipline tarifaire de la Californie ou de New York. <br> Il est préférable de sacrifier une partie du volume de ventes au profit d'un retour immédiat à la rentabilité par la réduction drastique des promotions. <br> En parallèle, un audit des opérations locales (Supply Chain régionale) doit être mené pour identifier si ces remises massives servent à compenser des coûts de distribution ou de stockage structurellement défaillants dans ces quatre États.
+    
+    ---
+    
+    #### 3. Rationalisation de l'Offre Tables & Machines
+    **Constat :** Contrairement aux fournitures de bureau, les catégories "Tables" et "Machines" ne supportent pas les stratégies de remise agressive. Elles sont actuellement les principales contributrices au déficit opérationnel.
+    
+    > **Recommandation :** Cesser d'utiliser ces catégories comme produits d'appel promotionnels. <br> Elles doivent être repositionnées comme des produits de destination vendus à prix plein ou avec des remises symboliques, ou être retirées du catalogue dans les régions les moins rentables. <br> Un audit ciblé sur les coûts de fret et d'entreposage de ces biens encombrants s'impose pour valider s'il est logistiquement viable de continuer à les distribuer sur l'ensemble du territoire.
+    
+    ---
+    
+    #### 4. Pivot Marketing vers le Segment Home Office
+    **Constat :** Le segment Home Office (TPE/Indépendants) s'avère 24% plus rentable que le segment Consumer (Particuliers) pour un coût d'acquisition client (CAC) similaire.
+    
+    > **Recommandation :** Réallouer prioritairement le budget marketing vers le segment Home Office. <br> Concevoir des offres d'équipement technologique (catégorie à forte marge) spécifiquement packagées pour les travailleurs à domicile afin de maximiser le retour sur investissement des campagnes.
+    """, unsafe_allow_html=True)
+
 with tab1:
     st.subheader("Cartographie de la Rentabilité")
     if 'State' in filtered_df.columns and 'Sales' in filtered_df.columns and 'Profit' in filtered_df.columns and 'Discount' in filtered_df.columns:
@@ -392,10 +497,30 @@ with tab4:
 with tab5:
     st.subheader("Modélisation de la Rentabilité")
     
-    if not api_ready:
-        st.warning("⚠️ L'API de prédiction est introuvable. Assurez-vous que le serveur FastAPI est actif.")
-    elif not api_key:
-        st.info("ℹ️ Veuillez entrer votre clé API dans le menu latéral pour utiliser les fonctionnalités de modélisation.")
+    if not api_online:
+        st.warning("⚠️ L'API est introuvable. Vérifiez votre connexion ou le serveur FastAPI.")
+    
+    elif not model_loaded:
+        st.warning("⚠️ Le modèle de prédiction n'est pas disponible côté serveur.")
+    
+    elif not api_key or (key_status and key_status["reason"] == "missing"):
+        st.info("ℹ️ Veuillez entrer votre clé API dans le menu latéral.")
+    
+    elif not key_status:
+        st.error("❌ Clé API invalide ou non reconnue.")
+    
+    elif key_status["reason"] == "invalid":
+        st.error("❌ Clé API invalide.")
+    
+    elif key_status["reason"] == "unreachable":
+        st.warning("⚠️ Impossible de vérifier la clé (serveur injoignable).")
+    
+    elif key_status["reason"] == "model_down":
+        st.warning("⚠️ Modèle de prédiction indisponible.")
+    
+    elif key_status["reason"] == "error":
+        st.error("❌ Erreur lors de la validation de la clé API.")
+    
     else:
         tab_sim, tab_batch = st.tabs(["🎯 Simulateur What-If", "📂 Traitement par Lot"])
 
