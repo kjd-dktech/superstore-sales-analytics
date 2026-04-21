@@ -37,7 +37,7 @@ Cette proposition stratégique est soutenue par le simulateur prédictif (Random
 
 L'architecture est entièrement axée sur la scalabilité, dissociant le moteur analytique de l'interface de restitution :
 
-- **Front-End Décisionnel (Streamlit)** : Interface interactive permettant l'exploration dynamique des KPI, des comportements clients et des simulations de rentabilité. <br>*DIsponible sur [mayal-superstore.streamlit.app/](https://mayal-superstore.streamlit.app/)*
+- **Front-End Décisionnel (Streamlit)** : Interface interactive permettant l'exploration dynamique des KPI, des comportements clients et des simulations de rentabilité. <br>*DIsponible sur [mayal-superstore.streamlit.app](https://mayal-superstore.streamlit.app)*
 - **Backend Prédictif (FastAPI)** : Microservice d'inférence sécurisé exposant notre modèle de Machine Learning entraîné sur les données historiques. <br>*Disponible sur [kjd-dktech-superstore-api.hf.space](https://kjd-dktech-superstore-api.hf.space)*
 - **Intégration Continue / Modèle** : Le modèle de prédiction est hébergé et versionné sur Hugging Face Model Hub, garantissant des mises à jour transparentes selon l'évolution du marché.
 
