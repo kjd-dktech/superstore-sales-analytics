@@ -2,7 +2,7 @@
 
 **Analyse des performances commerciales et recommandations stratégiques (2014–2017)**
 
-## 🎯 Contexte et Objectifs
+## Contexte et Objectifs
 
 Ce projet a été conçu pour répondre à une problématique métier claire pour une enseigne de distribution américaine : **Optimiser la rentabilité opérationnelle** en analysant l'historique de ventes de 2014 à 2017.
 
@@ -11,7 +11,7 @@ L’objectif opérationnel n’est pas uniquement descriptif, mais bel et bien p
 - Comprendre l'impact des politiques de remises (Discount) sur la Marge Nette.
 - Optimiser la valeur unitaire par client.
 
-## 📈 Principales Conclusions et Recommandations
+## Principales Conclusions et Recommandations
 
 À travers l'analyse des +9 900 transactions, mes recommandations stratégiques pour la direction répondent à 4 leviers prioritaires, basés sur les constats diagnostiques :
 
@@ -33,7 +33,7 @@ L’objectif opérationnel n’est pas uniquement descriptif, mais bel et bien p
 
 Cette proposition stratégique est soutenue par le simulateur prédictif (Random Forest Backend) annexé dans l'outil permettant de valider et anticiper manuellement toutes transactions de ce genre.
 
-## 🛠️ Architecture du Projet
+## Architecture du Projet
 
 L'architecture est entièrement axée sur la scalabilité, dissociant le moteur analytique de l'interface de restitution :
 

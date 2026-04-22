@@ -15,6 +15,7 @@ import os
 import requests
 from pathlib import Path
 import io
+import uuid
 from datetime import datetime
 from dotenv import load_dotenv
 from cryptography.fernet import Fernet
@@ -38,8 +39,12 @@ try:
 except Exception:
     pass
 
-sim_history_file = history_dir / "sim_history.csv"
-batch_history_file = history_dir / "batch_history.csv"
+if 'session_id' not in st.session_state:
+    st.session_state['session_id'] = str(uuid.uuid4())
+
+session_id = st.session_state['session_id']
+sim_history_file = history_dir / f"sim_history_{session_id}.csv"
+batch_history_file = history_dir / f"batch_history_{session_id}.csv"
 
 if 'sim_history' not in st.session_state:
     if sim_history_file.exists():
@@ -525,7 +530,7 @@ with tab5:
         tab_sim, tab_batch = st.tabs(["🎯 Simulateur What-If", "📂 Traitement par Lot"])
 
         with tab_sim:
-            st.markdown("### 🎯 Simulateur What-If")
+            st.markdown("### Simulateur What-If")
             with st.form("whatif_form"):
                 sim_sales = st.number_input("Montant de la vente ($)", min_value=0.0, value=500.0, step=50.0)
                 sim_discount = st.slider("Taux de remise (%)", min_value=0.0, max_value=0.8, value=0.0, step=0.01)
@@ -607,7 +612,7 @@ with tab5:
                     st.error(f"Erreur de communication avec l'API : {e}")
 
         with tab_batch:
-            st.markdown("### 📂 Traitement par Lot (Batch CSV, XLS, JSON)")
+            st.markdown("### Traitement par Lot (Batch CSV, XLS, JSON)")
             uploaded_file = st.file_uploader("Chargez vos données transactionnelles", type=["csv", "xls", "xlsx", "json"])
             
             if uploaded_file is not None:
@@ -675,13 +680,13 @@ with tab5:
 with tab6:
     st.subheader("Historique de Session")
     
-    st.markdown("### 📈 Simulations Unitaires")
+    st.markdown("#### Simulations Unitaires")
     if st.session_state['sim_history']:
         st.dataframe(pd.DataFrame(st.session_state['sim_history']), width='stretch')
     else:
         st.info("Aucune simulation unitaire réalisée dans cette session.")
         
-    st.markdown("### 📂 Imports")
+    st.markdown("#### Imports")
     if st.session_state['batch_history']:
         st.dataframe(pd.DataFrame(st.session_state['batch_history']), width='stretch')
     else:
