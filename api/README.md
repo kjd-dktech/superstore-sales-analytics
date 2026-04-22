@@ -2,13 +2,13 @@
 
 **Inference API for Financial Predictions and Business Scenarios**
 
-## 🎯 Architecture & Finalité
+## Architecture & Finalité
 
 Le service d'inférence (Analytics & ML Backend) a été structuré comme un microservice indépendant afin de garantir la scalabilité et la sécurité des données décisionnelles :
 - **Framework de livraison** : L'API est développée sous `FastAPI`, optimisée pour une gestion asynchrone intensive.
 - **Continuité Analytique** : Le modèle prédictif embarqué (basé sur l'historique d'exploitation du système d'information) évalue la rentabilité sur-le-champ de scénarios transactionnels (Simulations unitaires et traitement par lots - Batching).
 
-## 📊 Capacités Stratégiques (SLA & Sécurité)
+## Capacités Stratégiques (SLA & Sécurité)
 
 Dans une optique de déploiement en production, l'architecture a été blindée contre divers vecteurs tout en permettant un Monitoring des consultations :
 
@@ -22,7 +22,7 @@ Dans une optique de déploiement en production, l'architecture a été blindée 
 3. **Administration Monitoring**
    - Panneau de gouvernance sécurisé (Admin Dashboard) pour l'attribution des clés clients. Identité de session chiffrée par symétrie (AES) avec `Fernet` via cookies signés.
 
-## 🐋 Stratégie de Déploiement
+## Stratégie de Déploiement
 
 Afin d'assurer sa portabilité et sa tolérance de charge :
 
